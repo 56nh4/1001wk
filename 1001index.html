@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>經典踩地雷小遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .cell {
+            user-select: none;
+            touch-action: manipulation;
+        }
+        /* Custom animations */
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-full flex flex-col justify-between">
+
+    <header class="bg-slate-800 border-b border-slate-700 py-4 px-6 shadow-md">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-red-600 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center">
+                    <i class="fa-solid fa-bomb text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">經典踩地雷</h1>
+                    <p class="text-xs text-slate-400">邏輯與速度的極限挑戰</p>
+                </div>
+            </div>
+            <!-- Difficulty Selector -->
+            <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
+                <button onclick="setDifficulty('easy')" id="btn-easy" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all bg-indigo-600 text-white shadow">初級 (9x9)</button>
+                <button onclick="setDifficulty('medium')" id="btn-medium" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-400 hover:text-white">中級 (16x16)</button>
+                <button onclick="setDifficulty('hard')" id="btn-hard" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-400 hover:text-white">高級 (30x16)</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 flex flex-col items-center">
+            
+            <!-- Score & Status Panel -->
+            <div class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-4 mb-6 flex flex-wrap justify-between items-center gap-4">
+                <!-- Mines Counter -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-red-500/20 border border-red-500/40 text-red-400 px-3 py-1.5 rounded-lg font-mono font-bold text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-flag text-sm"></i>
+                        <span id="mines-count">10</span>
+                    </div>
+                    <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">剩餘地雷</span>
+                </div>
+
+                <!-- Reset / Emotion Button -->
+                <button onclick="initGame()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white w-12 h-12 rounded-xl shadow-lg flex items-center justify-center text-xl transition-all" title="重新開始">
+                    <span id="face-icon">😊</span>
+                </button>
+
+                <!-- Timer & Best Time -->
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-lg font-mono font-bold text-lg flex items-center gap-2">
+                            <i class="fa-solid fa-stopwatch text-sm"></i>
+                            <span id="timer">000</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">計時器</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- High Score Display Banner -->
+            <div class="w-full flex justify-between items-center px-2 mb-4 text-xs text-slate-400 font-medium">
+                <div>最高記錄 (最佳時間): <span id="high-score" class="text-emerald-400 font-bold font-mono">-- 秒</span></div>
+                <button onclick="openInstructions()" class="text-indigo-400 hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-circle-question"></i> 遊戲說明
+                </button>
+            </div>
+
+            <!-- Game Board Viewport -->
+            <div id="board-container" class="w-full overflow-auto flex justify-center p-2 bg-slate-900/50 rounded-xl border border-slate-700 max-h-[60vh]">
+                <div id="board" class="grid gap-1"></div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Message Modal -->
+    <div id="message-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl animate-pop">
+            <div id="modal-icon" class="text-5xl mb-4">🎉</div>
+            <h3 id="modal-title" class="text-xl font-bold mb-2">恭喜過關！</h3>
+            <p id="modal-desc" class="text-slate-300 text-sm mb-6">您成功在 45 秒內清除所有地雷！</p>
+            <button onclick="closeModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl shadow-lg transition-all">
+                再來一局
+            </button>
+        </div>
+    </div>
+
+    <!-- Instructions Modal -->
+    <div id="instructions-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-pop text-left">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-book-open text-indigo-400"></i> 踩地雷遊戲規則</h3>
+                <button onclick="closeInstructions()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <ul class="space-y-3 text-sm text-slate-300 mb-6">
+                <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-circle-chevron-right text-indigo-400 mt-1"></i>
+                    <span><strong>左鍵點擊：</strong>翻開格子。數字代表周圍 8 個格子內地雷的總數。</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-circle-chevron-right text-indigo-400 mt-1"></i>
+                    <span><strong>右鍵點擊（或長按）：</strong>標記插旗，防止誤踩地雷。</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <i class="fa-solid fa-circle-chevron-right text-indigo-400 mt-1"></i>
+                    <span><strong>勝利條件：</strong>在不踩到地雷的情況下，翻開所有非地雷格子。</span>
+                </li>
+            </ul>
+            <button onclick="closeInstructions()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2.5 rounded-xl transition-all">
+                我知道了
+            </button>
+        </div>
+    </div>
+
+    <footer class="text-center py-4 text-xs text-slate-500 border-t border-slate-800">
+        經典踩地雷網頁小遊戲 &bull; 內建 LocalStorage 記錄存檔
+    </footer>
+
+    <script>
+        // Game Configurations for Difficulties
+        const DIFFICULTIES = {
+            easy: { rows: 9, cols: 9, mines: 10, name: '初級' },
+            medium: { rows: 16, cols: 16, mines: 40, name: '中級' },
+            hard: { rows: 16, cols: 30, mines: 99, name: '高級' }
+        };
+
+        let currentDifficulty = 'easy';
+        let config = DIFFICULTIES[currentDifficulty];
+
+        let board = [];
+        let revealedCount = 0;
+        let flaggedCount = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        // Number colors mapping for classic visual feel
+        const numberColors = {
+            1: 'text-blue-400',
+            2: 'text-emerald-400',
+            3: 'text-rose-400',
+            4: 'text-purple-400',
+            5: 'text-amber-400',
+            6: 'text-cyan-400',
+            7: 'text-pink-400',
+            8: 'text-slate-300'
+        };
+
+        // Initialize game on load
+        window.onload = function() {
+            loadHighScore();
+            initGame();
+        };
+
+        function setDifficulty(level) {
+            currentDifficulty = level;
+            config = DIFFICULTIES[level];
+            
+            // Update active states on buttons
+            ['easy', 'medium', 'hard'].forEach(lvl => {
+                const btn = document.getElementById(`btn-${lvl}`);
+                if (lvl === level) {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all bg-indigo-600 text-white shadow";
+                } else {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-400 hover:text-white";
+                }
+            });
+
+            initGame();
+        }
+
+        function initGame() {
+            // Reset state variables
+            clearInterval(timerInterval);
+            gameStarted = false;
+            gameOver = false;
+            secondsElapsed = 0;
+            revealedCount = 0;
+            flaggedCount = 0;
+            
+            document.getElementById('timer').innerText = '000';
+            document.getElementById('mines-count').innerText = config.mines;
+            document.getElementById('face-icon').innerText = '😊';
+            document.getElementById('message-modal').classList.add('hidden');
+
+            // Build empty board data structure
+            board = [];
+            for (let r = 0; r < config.rows; r++) {
+                let row = [];
+                for (let c = 0; c < config.cols; c++) {
+                    row.push({
+                        row: r,
+                        col: c,
+                        isMine: false,
+                        revealed: false,
+                        flagged: false,
+                        neighborMines: 0
+                    });
+                }
+                board.push(row);
+            }
+
+            renderBoard();
+            loadHighScore();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.style.gridTemplateColumns = `repeat(${config.cols}, minmax(0, 1fr))`;
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    const cellData = board[r][c];
+                    const cellEl = document.createElement('div');
+                    cellEl.id = `cell-${r}-${c}`;
+                    cellEl.className = 'cell w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-bold text-sm cursor-pointer transition-colors shadow-sm select-none';
+                    
+                    updateCellAppearance(cellEl, cellData);
+
+                    // Event listeners for click and right-click
+                    cellEl.addEventListener('click', (e) => handleCellClick(r, c));
+                    cellEl.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        handleCellRightClick(r, c);
+                    });
+
+                    // Support long press on mobile devices for flagging
+                    let pressTimer = null;
+                    cellEl.addEventListener('touchstart', (e) => {
+                        pressTimer = setTimeout(() => {
+                            handleCellRightClick(r, c);
+                            pressTimer = null;
+                        }, 500); // 500ms long press
+                    });
+                    cellEl.addEventListener('touchend', (e) => {
+                        if (pressTimer) {
+                            clearTimeout(pressTimer);
+                            pressTimer = null;
+                        }
+                    });
+
+                    boardEl.appendChild(cellEl);
+                }
+            }
+        }
+
+        function updateCellAppearance(cellEl, cellData) {
+            if (cellData.revealed) {
+                if (cellData.isMine) {
+                    cellEl.className = 'cell w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-bold text-sm bg-red-600 text-white shadow-inner animate-pop';
+                    cellEl.innerHTML = '<i class="fa-solid fa-bomb"></i>';
+                } else {
+                    cellEl.className = 'cell w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-bold text-sm bg-slate-900/60 border border-slate-700/50 shadow-inner';
+                    if (cellData.neighborMines > 0) {
+                        cellEl.innerText = cellData.neighborMines;
+                        cellEl.className += ` ${numberColors[cellData.neighborMines]}`;
+                    } else {
+                        cellEl.innerText = '';
+                    }
+                }
+            } else {
+                if (cellData.flagged) {
+                    cellEl.className = 'cell w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-bold text-sm bg-slate-700 hover:bg-slate-600 border border-slate-600 shadow text-red-400';
+                    cellEl.innerHTML = '<i class="fa-solid fa-flag"></i>';
+                } else {
+                    cellEl.className = 'cell w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-bold text-sm bg-slate-700 hover:bg-slate-600 border border-slate-600 shadow';
+                    cellEl.innerHTML = '';
+                }
+            }
+        }
+
+        function placeMines(firstR, firstC) {
+            let placed = 0;
+            while (placed < config.mines) {
+                let r = Math.floor(Math.random() * config.rows);
+                let c = Math.floor(Math.random() * config.cols);
+
+                // Don't place mine on the first clicked cell or its immediate neighbors for a fair opening
+                let isNearFirst = Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1;
+
+                if (!board[r][c].isMine && !isNearFirst) {
+                    board[r][c].isMine = true;
+                    placed++;
+                }
+            }
+
+            // Calculate neighbor mine counts
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    if (!board[r][c].isMine) {
+                        let count = 0;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                let nr = r + dr;
+                                let nc = c + dc;
+                                if (nr >= 0 && nr < config.rows && nc >= 0 && nc < config.cols) {
+                                    if (board[nr][nc].isMine) count++;
+                                }
+                            }
+                        }
+                        board[r][c].neighborMines = count;
+                    }
+                }
+            }
+        }
+
+        function handleCellClick(r, c) {
+            if (gameOver || board[r][c].flagged || board[r][c].revealed) return;
+
+            // Start timer on first click
+            if (!gameStarted) {
+                gameStarted = true;
+                placeMines(r, c);
+                startTimer();
+            }
+
+            // Check if clicked on mine
+            if (board[r][c].isMine) {
+                revealAllMines();
+                gameOver = true;
+                clearInterval(timerInterval);
+                document.getElementById('face-icon').innerText = '😵';
+                showModal(false, "很可惜，踩到地雷了！", "別氣餒，再試一次一定能成功！");
+                return;
+            }
+
+            revealCellRecursive(r, c);
+            checkWinCondition();
+            renderBoardState();
+        }
+
+        function revealCellRecursive(r, c) {
+            if (r < 0 || r >= config.rows || c < 0 || c >= config.cols) return;
+            if (board[r][c].revealed || board[r][c].flagged) return;
+
+            board[r][c].revealed = true;
+            revealedCount++;
+
+            // If empty cell, automatically expand neighbors
+            if (board[r][c].neighborMines === 0) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr !== 0 || dc !== 0) {
+                            revealCellRecursive(r + dr, c + dc);
+                        }
+                    }
+                }
+            }
+        }
+
+        function handleCellRightClick(r, c) {
+            if (gameOver || board[r][c].revealed) return;
+
+            if (!board[r][c].flagged) {
+                if (flaggedCount < config.mines) {
+                    board[r][c].flagged = true;
+                    flaggedCount++;
+                }
+            } else {
+                board[r][c].flagged = false;
+                flaggedCount--;
+            }
+
+            document.getElementById('mines-count').innerText = config.mines - flaggedCount;
+            renderBoardState();
+        }
+
+        function renderBoardState() {
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    const cellEl = document.getElementById(`cell-${r}-${c}`);
+                    if (cellEl) {
+                        updateCellAppearance(cellEl, board[r][c]);
+                    }
+                }
+            }
+        }
+
+        function revealAllMines() {
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    if (board[r][c].isMine) {
+                        board[r][c].revealed = true;
+                    }
+                }
+            }
+            renderBoardState();
+        }
+
+        function checkWinCondition() {
+            const totalCells = config.rows * config.cols;
+            if (revealedCount === totalCells - config.mines) {
+                gameOver = true;
+                clearInterval(timerInterval);
+                document.getElementById('face-icon').innerText = '😎';
+                
+                // Save High Score to LocalStorage
+                saveHighScore(secondsElapsed);
+
+                showModal(true, "恭喜過關！", `您成功清除了所有地雷，花費時間：${secondsElapsed} 秒！`);
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                if (secondsElapsed > 999) secondsElapsed = 999;
+                document.getElementById('timer').innerText = String(secondsElapsed).padStart(3, '0');
+            }, 1000);
+        }
+
+        // LocalStorage Management
+        function getLocalStorageKey() {
+            return `minesweeper_highscore_${currentDifficulty}`;
+        }
+
+        function saveHighScore(time) {
+            const key = getLocalStorageKey();
+            const savedScore = localStorage.getItem(key);
+            
+            if (!savedScore || time < parseInt(savedScore)) {
+                localStorage.setItem(key, time);
+                loadHighScore();
+            }
+        }
+
+        function loadHighScore() {
+            const key = getLocalStorageKey();
+            const savedScore = localStorage.getItem(key);
+            const highScoreEl = document.getElementById('high-score');
+            
+            if (savedScore) {
+                highScoreEl.innerText = `${savedScore} 秒`;
+            } else {
+                highScoreEl.innerText = '-- 秒';
+            }
+        }
+
+        // Modals management
+        function showModal(isWin, title, desc) {
+            const modal = document.getElementById('message-modal');
+            const iconEl = document.getElementById('modal-icon');
+            const titleEl = document.getElementById('modal-title');
+            const descEl = document.getElementById('modal-desc');
+
+            iconEl.innerText = isWin ? '🏆' : '💥';
+            titleEl.innerText = title;
+            descEl.innerText = desc;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('message-modal').classList.add('hidden');
+            initGame();
+        }
+
+        function openInstructions() {
+            document.getElementById('instructions-modal').classList.remove('hidden');
+        }
+
+        function closeInstructions() {
+            document.getElementById('instructions-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
